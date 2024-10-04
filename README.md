@@ -56,7 +56,7 @@ Users can manage and control running jobs, pausing and resuming background tasks
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/username/ShellCommander.git
+   git clone https://github.com/CKShetty4/ShellCommander.git
    ```
 2. **Navigate to the project directory**:
    ```bash
