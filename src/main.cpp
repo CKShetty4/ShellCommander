@@ -5,6 +5,26 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
+void ShellCommander::pwd() {
+    char cwd[1024];
+    getcwd(cwd, sizeof(cwd));
+    std::cout << "Current working directory: " << cwd << std::endl;
+}
+
+void ShellCommander::ls() {
+    std::string command = "ls";
+    pid_t pid = fork();
+    if (pid == 0) {
+        // Child process
+        execlp(command.c_str(), command.c_str(), (char*)NULL);
+        std::cerr << "Error executing command: " << strerror(errno) << std::endl;
+        exit(1);
+    } else {
+        // Parent process
+        waitpid(pid, NULL, 0);
+    }
+}
+
 void ShellCommander::run() {
     std::string command;
     std::string currentDir = getcwd(NULL, 0);
@@ -46,6 +66,10 @@ void ShellCommander::run() {
             } else {
                 std::cerr << "Usage: cd <directory>" << std::endl;
             }
+        } else if (args [0] == "pwd") {
+            pwd();
+        } else if (args[0] == "ls") {
+            ls();
         } else {
             pid_t pid = fork();
             if (pid == 0) {
