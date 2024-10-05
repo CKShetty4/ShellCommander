@@ -5,6 +5,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <fcntl.h>
+#include <signal.h>
 
 void ShellCommander::pwd() {
     char cwd[1024];
@@ -12,12 +13,18 @@ void ShellCommander::pwd() {
     std::cout << "Current working directory: " << cwd << std::endl;
 }
 
-void ShellCommander::ls() {
-    std::string command = "ls";
+void ShellCommander::ls(const std::vector<std::string>& args) {
+    std::vector<char*> lsArgs;
+    lsArgs.push_back(const_cast<char*>("ls"));
+    for (const auto& arg : args) {
+        lsArgs.push_back(const_cast<char*>(arg.c_str()));
+    }
+    lsArgs.push_back(nullptr);
+
     pid_t pid = fork();
     if (pid == 0) {
         // Child process
-        execlp(command.c_str(), command.c_str(), (char*)NULL);
+        execvp(lsArgs[0], lsArgs.data());
         std::cerr << "Error executing command: " << strerror(errno) << std::endl;
         exit(1);
     } else {
@@ -27,15 +34,27 @@ void ShellCommander::ls() {
 }
 
 void ShellCommander::executeCommand(const std::vector<std::string>& args) {
+    bool background = false;
+    std::vector<std::string> argsCopy = args; // Make a copy of args
+
+    if (!argsCopy.empty() && argsCopy.back() == "&") {
+        background = true;
+        argsCopy.pop_back();
+    }
+
     pid_t pid = fork();
     if (pid == 0) {
         // Child process
-        execlp(args[0].c_str(), args[0].c_str(), (char*)NULL);
+        execlp(argsCopy[0].c_str(), argsCopy[0].c_str(), (char*)NULL);
         std::cerr << "Error executing command: " << strerror(errno) << std::endl;
         exit(1);
     } else {
         // Parent process
-        waitpid(pid, NULL, 0);
+        if (!background) {
+            waitpid(pid, NULL, 0);
+        } else {
+            std::cout << "Background process started with PID: " << pid << std::endl;
+        }
     }
 }
 
@@ -155,7 +174,12 @@ void ShellCommander::run() {
         } else if (args[0] == "pwd") {
             pwd();
         } else if (args[0] == "ls") {
-            ls();
+            std::vector<std::string> lsArgs(args.begin() + 1, args.end());
+            if (lsArgs.empty()) {
+                ls({"-l"}); // default to ls -l if no options are given
+            } else {
+               ls(lsArgs);
+            }
         } else {
             bool pipe = false;
             bool redirect = false;
@@ -175,7 +199,15 @@ void ShellCommander::run() {
     }
 }
 
+void signalHandler(int sig) {
+    if (sig == SIGINT) {
+        std::cout << "Received SIGINT signal. Exiting..." << std::endl;
+        exit(0);
+    }
+}
+
 int main() {
+    signal(SIGINT, signalHandler);
     ShellCommander commander;
     commander.run();
     return 0;

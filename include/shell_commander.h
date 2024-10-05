@@ -10,7 +10,7 @@ class ShellCommander {
 public:
     void run();
     void pwd();
-    void ls();
+    void ls(const std::vector<std::string>& args);
     void executeCommand(const std::vector<std::string>& args);
     void pipeCommands(const std::vector<std::string>& args);
     void redirectOutput(const std::vector<std::string>& args);
