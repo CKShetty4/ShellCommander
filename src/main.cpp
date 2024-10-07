@@ -13,6 +13,14 @@ void ShellCommander::pwd() {
   std::cout << "Current working directory: " << cwd << std::endl;
 }
 
+void ShellCommander::echo(const std::vector<std::string> &args) {
+  for (size_t i = 1; i < args.size(); ++i) {
+    std::cout << args[i] << (i < args.size() - 1 ? " " : "");
+  }
+  std::cout << std::endl;
+}
+
+
 void ShellCommander::ls(const std::vector<std::string> &args) {
   std::vector<char *> lsArgs;
   lsArgs.push_back(const_cast<char *>("ls"));
@@ -182,7 +190,6 @@ void ShellCommander::redirectOutput(const std::vector<std::string> &args) {
 
 void ShellCommander::run() {
   std::string command;
-  std::string currentDir = getcwd(NULL, 0);
   while (true) {
     std::cout << "shell_commander> ";
     std::getline(std::cin, command);
@@ -198,19 +205,17 @@ void ShellCommander::run() {
     }
 
     if (args[0] == "cd") {
+      // Handle 'cd' command
       if (args.size() < 2) {
         std::cerr << "Error: cd requires a directory" << std::endl;
         continue;
       }
-
       std::string dir = args[1];
       if (dir == "~") {
         dir = getenv("HOME");
       }
-
       if (chdir(dir.c_str()) != 0) {
-        std::cerr << "Error changing directory: " << strerror(errno)
-                  << std::endl;
+        std::cerr << "Error changing directory: " << strerror(errno) << std::endl;
       }
     } else if (args[0] == "pwd") {
       pwd();
@@ -221,26 +226,32 @@ void ShellCommander::run() {
       } else {
         ls(lsArgs);
       }
+    } else if (args[0] == "echo") {
+      echo(args);
     } else {
-      bool pipe = false;
-      bool redirect = false;
+      bool isPipe = false;
+      bool isRedirectOutput = false;
+      bool isRedirectInput = false;
+
       for (const auto &arg : args) {
-        if (arg == "|")
-          pipe = true;
-        if (arg == ">")
-          redirect = true;
+        if (arg == "|") isPipe = true;
+        if (arg == ">") isRedirectOutput = true;
+        if (arg == "<") isRedirectInput = true;
       }
 
-      if (pipe) {
+      if (isPipe) {
         pipeCommands(args);
-      } else if (redirect) {
+      } else if (isRedirectOutput) {
         redirectOutput(args);
+      } else if (isRedirectInput) {
+        redirectInput(args);
       } else {
         executeCommand(args);
       }
     }
   }
 }
+
 
 void signalHandler(int sig) {
   if (sig == SIGINT) {
