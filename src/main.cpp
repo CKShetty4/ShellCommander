@@ -77,48 +77,58 @@ void ShellCommander::pipeCommands(const std::vector<std::string>& args) {
 
     pid_t pid1 = fork();
     if (pid1 == 0) {
-        // Child process 1
+        // Child process 1 (ls)
         close(pipefd[0]); // Close read end
         dup2(pipefd[1], STDOUT_FILENO); // Redirect stdout to pipe
         close(pipefd[1]); // Close write end
 
+        // Collect first command arguments (before the pipe)
         std::vector<std::string> cmd1Args;
         for (size_t i = 0; i < args.size(); ++i) {
             if (args[i] == "|") break;
             cmd1Args.push_back(args[i]);
         }
-        executeCommand(cmd1Args);
-    } else {
-        pid_t pid2 = fork();
-        if (pid2 == 0) {
-            // Child process 2
-            close(pipefd[1]); // Close write end
-            dup2(pipefd[0], STDIN_FILENO); // Redirect stdin to pipe
-            close(pipefd[0]); // Close read end
 
-            std::vector<std::string> cmd2Args;
-            size_t j = 0; 
-            for (size_t i = 0; i < args.size(); ++i) {
-                if (args[i] == "|") {
-                    j = i + 1; 
-                    break;
-                }
-            }
-            for (; j < args.size(); ++j) {
-                cmd2Args.push_back(args[j]);
-            }
-            // Execute the command directly
-            execlp(cmd2Args[0].c_str(), cmd2Args[0].c_str(), cmd2Args[1].c_str(), (char*)NULL);
-            std::cerr << "Error executing command: " << strerror(errno) << std::endl;
-            exit(1);
-        } else {
-            // Parent process
-            close(pipefd[0]); // Close read end
-            close(pipefd[1]); // Close write end
-            waitpid(pid1, NULL, 0);
-            waitpid(pid2, NULL, 0);
-        }
+        // Convert cmd1Args to char* array and execute it
+        std::vector<char*> argv1;
+        for (auto &arg : cmd1Args) argv1.push_back(const_cast<char*>(arg.c_str()));
+        argv1.push_back(nullptr);
+
+        execvp(argv1[0], argv1.data());
+        std::cerr << "Error executing command: " << strerror(errno) << std::endl;
+        exit(1);
     }
+
+    pid_t pid2 = fork();
+    if (pid2 == 0) {
+        // Child process 2 (grep)
+        close(pipefd[1]); // Close write end
+        dup2(pipefd[0], STDIN_FILENO); // Redirect stdin to pipe
+        close(pipefd[0]); // Close read end
+
+        // Collect second command arguments (after the pipe)
+        std::vector<std::string> cmd2Args;
+        bool pipeFound = false;
+        for (size_t i = 0; i < args.size(); ++i) {
+            if (pipeFound) cmd2Args.push_back(args[i]);
+            if (args[i] == "|") pipeFound = true;
+        }
+
+        // Convert cmd2Args to char* array and execute it
+        std::vector<char*> argv2;
+        for (auto &arg : cmd2Args) argv2.push_back(const_cast<char*>(arg.c_str()));
+        argv2.push_back(nullptr);
+
+        execvp(argv2[0], argv2.data());
+        std::cerr << "Error executing command: " << strerror(errno) << std::endl;
+        exit(1);
+    }
+
+    // Parent process
+    close(pipefd[0]); // Close read end
+    close(pipefd[1]); // Close write end
+    waitpid(pid1, NULL, 0);
+    waitpid(pid2, NULL, 0);
 }
 
 void ShellCommander::redirectInput(const std::vector<std::string> &args) {
